@@ -9,8 +9,11 @@ from multiprocessing import Queue
 
 
 # logger_format = "[%(asctime)s %(msecs)03dms] [PID %(process)d] %(message)s";
-logger_format = "[%(asctime)s %(msecs)03dms] [PID %(process)d %(threadName)s] %(message)s";
-logging.basicConfig(format=logger_format, level=logging.INFO, datefmt="%I:%M:%S");
+# error_logger_format = "[ERROR] [%(asctime)s] [PID %(process)d %(threadName)s] %(message)s";
+info_logger_format  = "[%(asctime)s %(msecs)03dms] [PID %(process)d %(threadName)s] %(message)s";
+
+# logging.basicConfig(format=error_logger_format, level=logging.ERROR, datefmt="%I:%M:%S");
+logging.basicConfig(format=info_logger_format, level=logging.INFO, datefmt="%I:%M:%S");
 
 
 class Error(object):
@@ -129,6 +132,7 @@ class BaseProc(object):
             self._status = value;
             return self._status;
         else:
+            logging.error("[ERROR] This status is not defined for this processing!");
             self._log.err(Error(message="[ERROR] This status is not defined for this processing!"));
             return False;
 
@@ -220,10 +224,10 @@ class BaseProc(object):
         # I close the processing queue
         q.close();
 
-        logging.info("Execution of this processing started ...");
+        # logging.info("Execution of this processing started ...");
         result = self._exec_f(state, data);
 
-        logging.info("Termited.");
+        # logging.info("Termited.");
         return state, result;
 
     def __call__(self, state: object, data: object=None):
@@ -309,11 +313,12 @@ class MulProc(Proc):
 
         # I close the processing queue
         q.close();
+        del q;
 
-        logging.info(f"Exec d_proc {dx = } is started ...");
+        # logging.info(f"Exec d_proc {dx = } is started ...");
         result = self._d_exc_f(state, dset, dx);
 
-        logging.info(f"d_proc {dx = } done !");
+        # logging.info(f"d_proc {dx = } done !");
         return state, result;
 
     # def proc_f(self, state: object, results: object=None):
@@ -388,7 +393,7 @@ class MulProc(Proc):
             k = 0;
 
             for i in range(s1):
-                logging.info(f'{k = } {len(range(k, (k + n1))) = }');
+                # logging.info(f'{k = } {len(range(k, (k + n1))) = }');
                 yield (self.dexc,
                     {
                         'dset' : self._d_set, 
@@ -398,7 +403,7 @@ class MulProc(Proc):
                 k = k + n1;
 
             for i in range(s2):
-                logging.info(f'{k = } {len(range(k, (k + n2))) = }');
+                # logging.info(f'{k = } {len(range(k, (k + n2))) = }');
                 yield (self.dexc,
                     {
                         'dset' : self._d_set, 
@@ -406,7 +411,6 @@ class MulProc(Proc):
                     },
                 );
                 k = k + n2;
-
 
         elif self._status == 1:
             yield (self.exec, self._local_data,);
@@ -529,6 +533,14 @@ class Kernel(CProcess):
         time.sleep(0.01);
         return p, q;
 
+    def wait_result(self, q: Queue):
+        """Function used to wait and get the returned resusult of processing sequence."""
+        assert q is not None, (
+            "None type is not authorized."
+        );
+        while q.empty(): pass;
+        return q.get();
+
     def __get_insts(self, proc: Proc, state: object):
         """This function allows you to extract from a processing the elementaries 
         instruction to send to ordinal coounter of our processor."""
@@ -581,6 +593,7 @@ class Kernel(CProcess):
                 "The processing instance must be a Proc type."
             );
 
+        logging.info("Recovery of elementary instruction for ordinal counter... DONE !");
         return insts;
 
     def __start_exec(self, q):
@@ -612,6 +625,8 @@ class Kernel(CProcess):
         processor = Processor();
         logging.info("Loading of instruction into ordinal counter...");
         processor.odc.add_inst(insts);
+        insts.clear();
+        del insts;
 
         logging.info("Execution started ...");
         return processor.exec();
@@ -642,12 +657,16 @@ class Kernel(CProcess):
 
                 while proc.mut() is not None:
                     # recovery of elementary instruction for ordinal counter
+                    logging.info("Recovery of next elementary instructions for ordinal counter ...");
                     insts = self.__get_insts(proc, state);
 
                     # execute instruction
                     cstate, results = self.__exec_with_processor(insts);
                     proc.local = results;
                     state      = cstate;
+
+                    logging.info("Processing terminated.");
+                    time.sleep(1);
 
                 if proc.on_done_cb is not None:
                     proc.on_done_cb(state);
@@ -665,14 +684,6 @@ class Kernel(CProcess):
         # we return the current state
         return state;
 
-    def wait_result(self, q: Queue):
-        """Function used to wait and get the returned resusult of processing sequence."""
-        assert q is not None, (
-            "None type is not authorized."
-        );
-        while q.empty(): pass;
-        return q.get();
-
 
 class OrdinalCounter(object):
     # This structure represent a ordinal counter.
@@ -682,6 +693,10 @@ class OrdinalCounter(object):
         """Constructor of an ordinal counter."""
         super(OrdinalCounter, self).__init__();
         self.__insts = queue.Queue();  # represents the initialize instructions queue
+
+    @property
+    def intsize(self):
+        return self.__insts.qsize();
 
     def has_next(self):
         """Function used to check if instructions list is empty"""
@@ -737,6 +752,9 @@ class Processor(object):
         if cpuc is None: self.__cpu_count = os.cpu_count();
         else:            self.__cpu_count = cpuc;
 
+        # I remove a CPU because the current thread uses one CPU
+        self.__cpu_count = self.__cpu_count - 1;
+
         # The callback functions
         self.__eicb = lambda x: x;
         self.__ecb  = lambda y: y;
@@ -763,6 +781,10 @@ class Processor(object):
 
     def exec(self):
         """Program of execution of instructions"""
+        logging.info("%16d | CPU count" % (self.__cpu_count,));
+        logging.info("%16d | Instruction count" % (self.__odc.intsize,));
+
+        counter = 0;
         results = [];
         state   = None;
 
@@ -775,6 +797,7 @@ class Processor(object):
                 # we recovery this formated instructions
                 future_map = self.odc.fetch(executor);
                 logging.info("Fetching instructions to processor is done !");
+                print();
 
                 # we waitting each end of task
                 # we recovery the integer reterned by task
@@ -782,6 +805,9 @@ class Processor(object):
                 # if task has different status of preview cas, then call the callback function
                 for future in cf.as_completed(future_map):
                     state, result = future.result();
+                    counter += 1;
+
+                    logging.info("%16d | instructions done." % (counter, ));
                     results.append(result);
                     self.__eicb(result);
                     # if type(result) is tuple:

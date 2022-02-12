@@ -45,11 +45,11 @@ class SecondProc(pcsys.Proc):
 class ThirstProc(pcsys.MulProc):
     def init_f(self, state: object):
         print(state.inivalue);
-        state.inivalue = range(9999999999);
+        state.inivalue = range(100000000);
 
         # mult configuration
         self.dset = state.inivalue;
-        self.ndiv = 100;
+        self.ndiv = 500;
 
     def d_proc_f(self, state, dset, dx):
         # print(f"{dx = } {dset = }");
@@ -60,14 +60,11 @@ class ThirstProc(pcsys.MulProc):
             # print(y);
             result.append(y**2);
 
-        print(f"{dx = } is done !");
         return result;
 
     def proc_f(self, state, results):
         print("proc_f 3");
-        for r in results:
-            # print(f"{r}");
-            print();
+        print(len(results));
 
         print(state);
         return 10;
@@ -80,14 +77,14 @@ if __name__ == '__main__':
     p3 = ThirstProc();
 
     proc_seq1 = pcsys.ProcSeq();
-    # proc_seq2 = pcsys.ProcSeq();
+    proc_seq2 = pcsys.ProcSeq();
     proc_seq1.add_proc(p1);
     proc_seq1.add_proc(p2);
-    proc_seq1.add_proc(p3);
+    # proc_seq1.add_proc(p3);
 
-    # proc_seq2.add_proc(p2);
+    proc_seq2.add_proc(p3);
     # proc_seq2.add_proc(p1);
-    # proc_seq1.add_proc(proc_seq2);
+    proc_seq1.add_proc(proc_seq2);
 
     state = Object();
     p, q  = kernel.start_proc(proc_seq1, state);
