@@ -132,8 +132,9 @@ class BaseProc(object):
             self._status = value;
             return self._status;
         else:
-            logging.error("[ERROR] This status is not defined for this processing!");
-            self._log.err(Error(message="[ERROR] This status is not defined for this processing!"));
+            e = Error(message="[ERROR] This status is not defined for this processing!");
+            print(e.message);
+            self._log.err(e);
             return False;
 
     @property
@@ -198,8 +199,9 @@ class BaseProc(object):
         try:
             result = self.proc_f(state, data);
         except Exception as e:
-            print(e.args[0]);
-            self._log.err(Error(args=(e,)));
+            err = Error(message=e.args[0], args=(e,));
+            print("[ERROR] {}".format(err.message));
+            self.__log.err(e);
 
         # if self._on_done_cb is not None:
         #    # we execute the callback of end of processing, if it's defined
@@ -360,7 +362,9 @@ class MulProc(Proc):
 
             result = self.d_proc_f(state, dset, kx);
         except Exception as e:
-            self.__log.err(Error(args=(e,)));
+            err = Error(message=e.args[0], args=(e,));
+            print("[ERROR] {}".format(err.message));
+            self.__log.err(e);
 
         # if self._on_done_cb is not None:
         #    # we execute the callback of end of processing, if it's defined
