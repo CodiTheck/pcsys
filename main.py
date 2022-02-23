@@ -45,7 +45,7 @@ class SecondProc(pcsys.Proc):
 class ThirstProc(pcsys.MulProc):
     def init_f(self, state: object):
         print(state.inivalue);
-        state.inivalue = range(100000000);
+        state.inivalue = range(150000000);
 
         # mult configuration
         self.dset = state.inivalue;

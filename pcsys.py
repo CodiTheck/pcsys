@@ -252,8 +252,8 @@ class MulProc(Proc):
         super(MulProc, self).__init__(stsdef);
         # {_d_set} represent the var name which contains the iterable data. 
         # It must not be equal to None, because it's required.
-        self._d_set = None;
-        self._n_div = None; # represents the number of division.
+        self._d_set = [];
+        self._n_div = 0; # represents the number of division.
 
     @property
     def dset(self):
@@ -318,6 +318,7 @@ class MulProc(Proc):
         elif dt is list or hasattr(dset, '__iter__'):
             kx = dx;
 
+        logging.info("ELEM PROC [%16d .. %16d] ..." % (kx[0], kx[-1]));
         result = self.d_proc_f(state, dset, kx);
 
         # err = Error(message=e.args[0], args=(e,));
@@ -325,6 +326,7 @@ class MulProc(Proc):
         # self.__log.err(e);
 
         # we return the current state
+        logging.info("ELEM PROC [%16d .. %16d] ... DONE !" % (kx[0], kx[-1]));
         return result;
 
     def __iter__(self):
@@ -467,6 +469,7 @@ class Kernel(CProcess):
         # we can prepare and start the process of our processing and try to send
         # the initialize state to it.
         q = Queue();
+        print("OK OK");
         p = Process(target=Kernel.__start_exec, args=(self, proc, state, q));
 
         # pid = len(self.__process);
@@ -476,7 +479,7 @@ class Kernel(CProcess):
 
         # waite for 10ms second, before to return the process instance 
         # and his queue
-        time.sleep(0.010);
+        # time.sleep(0.010);
         return p, q;
 
     def exec_proc(self, proc: ProcSeq, state: object):
@@ -485,22 +488,6 @@ class Kernel(CProcess):
 
     def __start_exec(self, procs: ProcSeq, state: object, q: Queue):
         """Function which allows to start execution of processing."""
-        # Recovery of arguments
-        # assert isinstance(q, Queue), (
-        #    """The data passed by argument must be an instance of a multiprocessing.Queue 
-        #    type."""
-        # );
-        # assert not q.empty(), (
-        #    "Arguments missing !",
-        # );
-        # args  = q.get();
-        # procs = args.get('procs');
-        # state = args.get('state');
-
-        # we verify the argument types, before to start execution
-        # assert isinstance(procs, ProcSeq), (
-        #    "`procs` argument must be a ProcSeq instance."
-        # );
         state = self.__exec(procs, state);
         del self.__process[q];
         q.put(state);
@@ -560,15 +547,6 @@ class Kernel(CProcess):
                 assert callable(_f_), (
                     "The function returned by processing must be callable."
                 );
-                # q = Queue();
-                # q.put({
-                #    'state': state,
-                #    'data':  args,
-                # });
-
-                # we wait for a few microseconds, before to init the new 
-                # instruction instance 
-                # while q.empty(): pass;
 
                 inst = Inst(_f_, (state, args));
                 insts.append(inst);
@@ -597,58 +575,61 @@ class Kernel(CProcess):
         """Function used to execute a processing squence in a process.
         It receives the processing sequence and the initial state by a queue instance."""
         processor = Processor();
-        procs.init_f(state);
+        try:
+            procs.init_f(state);
+            for proc in procs:
+                if isinstance(proc, Proc):
+                    # execution of initalization function of processing
+                    proc.init_f(state);
 
-        for proc in procs:
-            if isinstance(proc, Proc):
-                # execution of initalization function of processing
-                proc.init_f(state);
-
-                # we can execution these instructions
-                if proc.on_start_cb is not None:
-                    proc.on_start_cb(state);                    
-
-                # execute instruction
-                # results = self.__exec_with_processor(insts);
-                # state   = results[0];
-
-                while proc.mut() is not None:
-                    # recovery of elementary instruction for ordinal counter
-                    logging.info("Recovery of next elementary instructions for ordinal counter ...");
-                    # insts = self.__get_insts(proc, state);
-
-                    for _f_, args in proc:
-                        # inst = Inst(_f_, (state, args));
-                        # insts.append(inst);
-                        processor.put(_f_, (state, args));
-
-                    results = [];
-                    for st, result in processor.recr():
-                        results.append(result);
-                        state = st;
-
-                    proc.local = results if len(results) > 1\
-                            else results[0];
+                    # we can execution these instructions
+                    if proc.on_start_cb is not None:
+                        proc.on_start_cb(state);                    
 
                     # execute instruction
-                    # cstate, results = self.__exec_with_processor(insts);
-                    # proc.local = results;
+                    # results = self.__exec_with_processor(insts);
+                    # state   = results[0];
 
-                    logging.info("Processing terminated.");
-                    # time.sleep(0.001);
+                    while proc.mut() is not None:
+                        # recovery of elementary instruction for ordinal counter
+                        logging.info("Recovery of next elementary instructions for ordinal counter ...");
+                        # insts = self.__get_insts(proc, state);
 
-                if proc.on_done_cb is not None:
-                    proc.on_done_cb(state);
+                        for _f_, args in proc:
+                            # inst = Inst(_f_, (state, args));
+                            # insts.append(inst);
+                            processor.put(_f_, (state, args));
 
-            elif isinstance(proc, ProcSeq):
-                # we recall this function to execute this processing sequence
-                self.__exec(proc, state);
-            else:
-                # else the processing instance is not valid
-                # we raise a value exception
-                raise ValueError(
-                    "This processing of the processing sequence is not a valid instance."
-                );
+                        results = [];
+                        for st, result in processor.recr():
+                            results.append(result);
+                            state = st;
+
+                        proc.local = results if len(results) > 1\
+                                else results[0];
+
+                        # execute instruction
+                        # cstate, results = self.__exec_with_processor(insts);
+                        # proc.local = results;
+
+                        logging.info("Processing terminated.");
+                        # time.sleep(0.001);
+
+                    if proc.on_done_cb is not None:
+                        proc.on_done_cb(state);
+
+                elif isinstance(proc, ProcSeq):
+                    # we recall this function to execute this processing sequence
+                    state = self.__exec(proc, state);
+                else:
+                    # else the processing instance is not valid
+                    # we raise a value exception
+                    raise ValueError(
+                        "This processing of the processing sequence is not a valid instance."
+                    );
+        except StopProcessing:
+            logging.info("Processing abort.");
+
         # print(state.keywords);
         # we return the current state
         processor.free();
@@ -759,41 +740,4 @@ class Processor(object):
     def free(self):
         del self.__cpu;
         return True;
-
-    # def exec(self):
-    #    """Program of execution of instructions"""
-    #    logging.info("%16d | CPU count" % (self.__cpu_count,));
-    #    logging.info("%16d | Instruction count" % (self.__odc.intsize,));
-    #
-    #    counter = 0;
-    #    results = [];
-    #    state   = None;
-    #
-    #    while self.odc.has_next():
-    #        with cf.ThreadPoolExecutor(max_workers=self.__cpu_count) as executor:
-    #            # future_to_mapping = {
-    #			#         executor.submit(mainf, i, num_word_mapping[i]): num_word_mapping[i] for i in range(1, 10)
-    #		    # };
-    #
-    #            # we recovery this formated instructions
-    #            future_map = self.odc.fetch(executor);
-    #            logging.info("Fetching instructions to processor is done !");
-    #            print();
-    #
-    #            # we waitting each end of task
-    #            # we recovery the integer reterned by task
-    #            # if task has REPAY status, then we put again in queue
-    #            # if task has different status of preview cas, then call the callback function
-    #            for future in cf.as_completed(future_map):
-    #                state, result = future.result();
-    #                counter += 1;
-    #
-    #                logging.info("%16d | instructions done." % (counter, ));
-    #                results.append(result);
-    #                self.__eicb(result);
-    #
-    #    # self.__is_running = False;
-    #    self.__ecb(None);
-    #    return state, results;
-
 pass;
