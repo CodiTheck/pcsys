@@ -123,6 +123,13 @@ class B(pcsys.Proc):
 if __name__ == '__main__':
     """Ne te focalise pas sur ce que je vais écrire ici. Je t'expliquerai tous
     ceci en détail dans les prochaines sections."""
+
+    # on précise qu'on continu le traitement indépendament 
+    # des erreurs éventuelles, et on n'affiche pas les messages
+    # interne du module
+    pcsys.STOPONFE = False;
+    pcsys.LOG      = False;
+
     kernel = pcsys.Kernel();
     procs  = pcsys.ProcSeq(); # séquence de processus
 
@@ -141,11 +148,17 @@ if __name__ == '__main__':
     state.initialval = 1000;
 
     # on démarre la séquence de traitement (processus)
-    q, p = kernal.start_proc(procs, state);
+    p, q = kernel.start_proc(procs, state);
     resl = kernel.wait_result(q);
 
-    # on affiche le résultat résultant de tout les traitements
-    print(resl);
+    # on affiche l'état global `state` modifié après tous les traitements
+    print(resl[0]);
+
+    # on affiche les messages d'erreurs
+    print();
+    print("----------------------Liste des erreurs de traitement--------------------");
+    print(resl[1]);
+
 
 ```
 
