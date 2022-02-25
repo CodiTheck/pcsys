@@ -91,33 +91,32 @@ import pcsys
 class A(pcsys.Proc):
     def init_f(self, state):
         print("Initialisation du processus A ...");
+
+        # dans ce processus, on va definir une variable dans l'état local
+        # L'état local ici est représenté par la variable `x`.
+        x = "Donnée de A";
+        return x;
     
     def proc_f(self, state, data):
         print("Traitement de A ...");
 
-        # dans ce processus, on va definir un attribut dans l'état local
-        # L'état local ici est représenté par la variable `data`.
-        data.result_a = "Donnée de A";
+		# C'est data qui contient la valeur de la variable 
+		# contenu dans l'état local.
 
-        # on l'affiche ensuite
-        print(f"{data.result_a}");
+        # on affiche donc la valeur de `data`
+        print(f"{data}");
 
 
 # Une seconde structure B
 class B(pcsys.Proc):
     def init_f(self, state):
-        print("Initialisation du processus B ...");
+        print("\nInitialisation du processus B ...");
     
     def proc_f(self, state, data):
         print("Traitement de B ...");
 
-        # on affiche les données de `result_a`
-        print(f"{data.result_a}");
-
-        # on definit un attribut pour l'état local de B
-        # et ensuite on l'affiche
-        data.result_b = "Donnée de B";
-        print(f"{data.result_b}");
+        # on affiche les données de `data`
+        print(f"{data}");
 
 
 if __name__ == '__main__':
@@ -140,11 +139,8 @@ if __name__ == '__main__':
     procs.add_proc(a);
     procs.add_proc(b);
 
-    # on crée une classe pour représenter l'état global
-    class State(object): pass;
-
     # on déclare le state
-    state = State();
+    state = pcsys.State();
     state.initialval = 1000;
 
     # on démarre la séquence de traitement (processus)

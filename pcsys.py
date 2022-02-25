@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import queue
+import random
 import logging
 import concurrent.futures as cf
 
@@ -126,11 +127,16 @@ class CProcess(Process):
         return self._log;
 
 
+class State(object):
+    # Structure of global state for multi-processing
+    pass;
+
+
 class BaseProc(object):
     ## This class is the basic structure of a Processing sequence and
     ## the elementary processing.
 
-    def __init__(self, stsdef=[0, 1]):
+    def __init__(self, name=None, stsdef=[0, 1]):
         """Constructor of a basic processing instance"""
         super(BaseProc, self).__init__();
         self.__status_index = 0;    # represents the index of next status to select
@@ -138,8 +144,11 @@ class BaseProc(object):
         self._stsdef  = stsdef      # contains a definition of all available status
         self._status  = None;       # Status of the processing
         self._state   = None;       # State will be used in the processing (global data)
-        self._name    = None;
-        self._log     = Logger();   # Liste of errors detected when the course of the processing
+        self._name    = name if name is not None\
+                else str(random.randint(0, round(time.time())));
+        
+        # Liste of errors detected when the course of the processing
+        self._log = Logger();
 
         # callback methods used when processing start
         # and when processing terminate
@@ -265,9 +274,9 @@ class BaseProc(object):
 class Proc(BaseProc):
     ## This class represent a elementary processing [O(1)]
 
-    def __init__(self, stsdef=[0]):
+    def __init__(self, name=None, stsdef=[0]):
         """Constructor of an elementary processing instance."""
-        super(Proc, self).__init__(stsdef);
+        super(Proc, self).__init__(name, stsdef);
 
     def proc_f(self, state: object, data: object=None):
         """Function which should be redefined by the programmer.
@@ -283,9 +292,9 @@ class MulProc(Proc):
     ## This class represent a multi-processing implementation [O(n)].
     ## This processing must be executed by a multi-thread loop using thread pool.
 
-    def __init__(self, stsdef=[0, 1]):
+    def __init__(self, name=None, stsdef=[0, 1]):
         """Constructor of a multi-processing instance."""
-        super(MulProc, self).__init__(stsdef);
+        super(MulProc, self).__init__(name, stsdef);
         # {_d_set} represent the var name which contains the iterable data. 
         # It must not be equal to None, because it's required.
         self._d_set = [];
@@ -423,9 +432,9 @@ class ProcSeq(BaseProc):
     ## The kernel is implemented later.
     ## The instance of this class must be iterable.
 
-    def __init__(self):
+    def __init__(self, name=None):
         """Constructor of an instance of sequence of processing."""
-        super(ProcSeq, self).__init__();
+        super(ProcSeq, self).__init__(name=name);
         self.__procs = [];
         # The above attribut represent a processing instances list.
 
@@ -678,8 +687,9 @@ class Kernel(CProcess):
             raise StopProcessing();
 
     def __procexf(self, procs: ProcSeq, state: object, processor: Processor, logger: Logger):
+        returned = None;
         try:
-            procs.init_f(state);
+            returned = procs.init_f(state);
         except Exception as e:
             logger = self.__elreg(e, logger);
             if STOPONFE:
@@ -689,7 +699,9 @@ class Kernel(CProcess):
             try:
                 if isinstance(proc, Proc):
                     # execution of initalization function of processing
-                    proc.init_f(state);
+                    info(f"[{proc.name}] Processing started ...");
+                    returned = proc.init_f(state);
+                    proc.local = returned;
 
                     # we can execution these instructions
                     if proc.on_start_cb is not None:
@@ -721,7 +733,7 @@ class Kernel(CProcess):
                         # cstate, results = self.__exec_with_processor(insts);
                         # proc.local = results;
 
-                        info("Processing terminated.");
+                        info(f"[{proc.name}] Processing terminated.");
                         # time.sleep(0.001);
 
                     if proc.on_done_cb is not None:
